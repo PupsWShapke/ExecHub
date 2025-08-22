@@ -594,16 +594,7 @@ local function createSimpleButton(name, positionY, color, text, parent, callback
     button.TextColor3 = Color3.fromRGB(220, 220, 220)
     button.TextSize = 16
     button.Font = Enum.Font.SourceSansBold
-    button.Parent = parent
-
-    local buttonCorner = Instance.new("UICorner")
-    buttonCorner.CornerRadius = UDim.new(0, 8)
-    buttonCorner.Parent = button
-
-    local buttonStroke = Instance.new("UIStroke")
-    buttonStroke.Color = Color3.fromRGB(100, 100, 140)
-    buttonStroke.Thickness = 1
-    buttonStroke.Parent = button
+    button.Parent = parent 
 
     button.MouseEnter:Connect(function()
         TweenService:Create(button, TweenInfo.new(0.2), {
