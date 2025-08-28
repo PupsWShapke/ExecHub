@@ -589,7 +589,7 @@ local function createSimpleButton(name, positionY, color, text, parent, callback
     button.Size = UDim2.new(0, 310, 0, 35)
     button.Position = UDim2.new(-0.37, 125, 0, positionY)
     button.BackgroundColor3 = color
-    button.BackgroundTransparency = 0.1
+    button.BackgroundTransparency = 1
     button.Text = text
     button.TextColor3 = Color3.fromRGB(220, 220, 220)
     button.TextSize = 16
