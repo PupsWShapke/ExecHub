@@ -59,13 +59,13 @@ local state = {
     ragdollPowerActive = false,
     guiVisible = true,
     originalRagdollTimer = 100,
-    instantTransform = true,
-    noSlowdowns = true,
-    noStunOnMiss = true,
-    disableFinishers = true,
-    disableHitStun = true,
-    noJumpFatigue = true,
-    disableCombatTimer = true,
+    instantTransform = false,
+    noSlowdowns = false,
+    noStunOnMiss = false,
+    disableFinishers = false,
+    disableHitStun = false,
+    noJumpFatigue = false,
+    disableCombatTimer = false,
     disableBlocking = false,
     screenConnection = nil
 }
@@ -133,7 +133,6 @@ local function onCharacterAdded(newCharacter)
             end)
         end
     end)
-    -- Reinitialize screen connection on character respawn
     if state.screenConnection then
         state.screenConnection:Disconnect()
     end
@@ -162,6 +161,7 @@ local function toggleScreenVisibility()
     local settingsFrame = tabFrames.Settings
     if settingsFrame:FindFirstChild("ScreenVisibilityContainer") then
         settingsFrame.ScreenVisibilityContainer.ScreenVisibilityToggle.Text = state.screenVisible and "On" or "Off"
+        settingsFrame.ScreenVisibilityContainer.ScreenVisibilityToggle.BackgroundColor3 = state.screenVisible and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 50, 50)
     end
 end
 
@@ -169,18 +169,15 @@ local function startFlying()
     if state.isFlying or not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
     state.isFlying = true
     
-    -- Clean up existing flight objects
     if state.bodyVelocity then state.bodyVelocity:Destroy() end
     if state.bodyGyro then state.bodyGyro:Destroy() end
     if state.flightConnection then state.flightConnection:Disconnect() end
     
-    -- Create new BodyVelocity
     state.bodyVelocity = Instance.new("BodyVelocity")
     state.bodyVelocity.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
     state.bodyVelocity.Velocity = Vector3.new(0, 0, 0)
     state.bodyVelocity.Parent = rootPart
     
-    -- Create new BodyGyro
     state.bodyGyro = Instance.new("BodyGyro")
     state.bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
     state.bodyGyro.CFrame = Camera.CFrame
@@ -188,7 +185,6 @@ local function startFlying()
     
     humanoid.PlatformStand = true
     
-    -- Flight logic
     state.flightConnection = RunService.RenderStepped:Connect(function()
         if state.isFlying and char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Humanoid") then
             local moveDirection = Vector3.new(0, 0, 0)
@@ -321,53 +317,69 @@ local function deleteAllParts()
 end
 
 local function toggleFollow(targetName)
+    print("toggleFollow called with target: " .. (targetName or "nil"))
     local newTarget = Players:FindFirstChild(targetName)
     if newTarget and newTarget.Character and newTarget.Character:FindFirstChild("HumanoidRootPart") and newTarget ~= player then
         state.followTargetPlayer = newTarget
-        state.followEnabled = not state.followEnabled
-        if state.followEnabled then
-            if state.followConnection then state.followConnection:Disconnect() end
-            state.followConnection = RunService.RenderStepped:Connect(function()
-                if state.followTargetPlayer and state.followTargetPlayer.Character and state.followTargetPlayer.Character:FindFirstChild("HumanoidRootPart") and char and char:FindFirstChild("HumanoidRootPart") then
-                    local targetRoot = state.followTargetPlayer.Character.HumanoidRootPart
-                    local targetPos = targetRoot.Position
-                    local playerPos = char.HumanoidRootPart.Position
-                    local directionToTarget = (targetPos - playerPos).Unit
-                    local followPos = targetPos - directionToTarget * state.followDistance
-                    followPos = Vector3.new(followPos.X, playerPos.Y, followPos.Z)
-                    char.HumanoidRootPart.CFrame = CFrame.new(followPos, targetPos)
-                else
-                    state.followEnabled = false
-                    if state.followConnection then state.followConnection:Disconnect() state.followConnection = nil end
-                    state.followTargetPlayer = nil
-                    -- Reinitialize screen connection when follow is disabled
-                    if state.screenConnection then
-                        state.screenConnection:Disconnect()
-                    end
-                    if screen then
-                        state.screenConnection = RunService.Heartbeat:Connect(updateScreenPosition)
-                        table.insert(connections, state.screenConnection)
-                    end
-                end
-            end)
-            table.insert(connections, state.followConnection)
-            -- Pause screen movement while following
-            if state.screenConnection then
-                state.screenConnection:Disconnect()
-                state.screenConnection = nil
-            end
-        else
-            if state.followConnection then state.followConnection:Disconnect() state.followConnection = nil end
-            state.followTargetPlayer = nil
-            -- Reinitialize screen connection when follow is disabled
-            if state.screenConnection then
-                state.screenConnection:Disconnect()
-            end
-            if screen then
-                state.screenConnection = RunService.Heartbeat:Connect(updateScreenPosition)
-                table.insert(connections, state.screenConnection)
-            end
+        state.followEnabled = true
+        print("Follow enabled for player: " .. newTarget.Name)
+        if state.followConnection then
+            state.followConnection:Disconnect()
+            state.followConnection = nil
         end
+        state.followConnection = RunService.RenderStepped:Connect(function()
+            if state.followTargetPlayer and state.followTargetPlayer.Character and state.followTargetPlayer.Character:FindFirstChild("HumanoidRootPart") and char and char:FindFirstChild("HumanoidRootPart") then
+                local targetRoot = state.followTargetPlayer.Character.HumanoidRootPart
+                local targetPos = targetRoot.Position
+                local playerPos = char.HumanoidRootPart.Position
+                local directionToTarget = (targetPos - playerPos).Unit
+                local followPos = targetPos - directionToTarget * state.followDistance
+                followPos = Vector3.new(followPos.X, playerPos.Y, followPos.Z)
+                char.HumanoidRootPart.CFrame = CFrame.new(followPos, targetPos)
+                print("Following " .. state.followTargetPlayer.Name .. " at distance: " .. state.followDistance)
+            else
+                state.followEnabled = false
+                if state.followConnection then
+                    state.followConnection:Disconnect()
+                    state.followConnection = nil
+                end
+                state.followTargetPlayer = nil
+                print("Follow stopped: invalid target or character")
+                if state.screenConnection then
+                    state.screenConnection:Disconnect()
+                end
+                if screen then
+                    state.screenConnection = RunService.Heartbeat:Connect(updateScreenPosition)
+                    table.insert(connections, state.screenConnection)
+                end
+            end
+        end)
+        table.insert(connections, state.followConnection)
+        if state.screenConnection then
+            state.screenConnection:Disconnect()
+            state.screenConnection = nil
+        end
+    else
+        state.followEnabled = false
+        if state.followConnection then
+            state.followConnection:Disconnect()
+            state.followConnection = nil
+        end
+        state.followTargetPlayer = nil
+        print("Follow disabled: no valid target")
+        if state.screenConnection then
+            state.screenConnection:Disconnect()
+        end
+        if screen then
+            state.screenConnection = RunService.Heartbeat:Connect(updateScreenPosition)
+            table.insert(connections, state.screenConnection)
+        end
+    end
+    local followFrame = tabFrames.Follow
+    if followFrame and followFrame:FindFirstChild("FollowToggleContainer") then
+        followFrame.FollowToggleContainer.FollowToggle.Text = state.followEnabled and "On" or "Off"
+        followFrame.FollowToggleContainer.FollowToggle.BackgroundColor3 = state.followEnabled and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 50, 50)
+        print("Follow toggle UI updated: " .. (state.followEnabled and "On" or "Off"))
     end
 end
 
@@ -466,6 +478,22 @@ local function updateMultiplier(name, value)
         end
     end
 end
+
+local function syncSettings()
+    local settings = ReplicatedStorage:FindFirstChild("Settings")
+    if settings and settings:FindFirstChild("Toggles") then
+        local toggles = settings.Toggles
+        state.instantTransform = toggles:FindFirstChild("InstantTransformation") and toggles.InstantTransformation.Value or false
+        state.noSlowdowns = toggles:FindFirstChild("NoSlowdowns") and toggles.NoSlowdowns.Value or false
+        state.noStunOnMiss = toggles:FindFirstChild("NoStunOnMiss") and toggles.NoStunOnMiss.Value or false
+        state.disableFinishers = toggles:FindFirstChild("DisableFinishers") and toggles.DisableFinishers.Value or false
+        state.disableHitStun = toggles:FindFirstChild("DisableHitStun") and toggles.DisableHitStun.Value or false
+        state.noJumpFatigue = toggles:FindFirstChild("NoJumpFatigue") and toggles.NoJumpFatigue.Value or false
+        state.disableCombatTimer = toggles:FindFirstChild("DisableCombatTimer") and toggles.DisableCombatTimer.Value or false
+        state.disableBlocking = toggles:FindFirstChild("DisableBlocking") and toggles.DisableBlocking.Value or false
+    end
+end
+syncSettings()
 
 -- Create ScreenGui
 local screenGui = Instance.new("ScreenGui")
@@ -596,6 +624,11 @@ local function createSimpleButton(name, positionY, color, text, parent, callback
     button.Font = Enum.Font.SourceSansBold
     button.Parent = parent 
 
+    local buttonStroke = Instance.new("UIStroke")
+    buttonStroke.Color = Color3.fromRGB(100, 100, 140)
+    buttonStroke.Thickness = 1
+    buttonStroke.Parent = button
+
     button.MouseEnter:Connect(function()
         TweenService:Create(button, TweenInfo.new(0.2), {
             Size = UDim2.new(0, 312, 0, 37),
@@ -640,9 +673,9 @@ local function createToggleButton(name, positionY, color, text, parent, stateKey
     toggle.Name = name .. "Toggle"
     toggle.Size = UDim2.new(0, 40, 0, 30)
     toggle.Position = UDim2.new(1, -40, 0, 2.5)
-    toggle.BackgroundColor3 = defaultState and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 50, 50)
+    toggle.BackgroundColor3 = state[stateKey] and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 50, 50)
     toggle.BackgroundTransparency = 0.1
-    toggle.Text = defaultState and "On" or "Off"
+    toggle.Text = state[stateKey] and "On" or "Off"
     toggle.TextColor3 = Color3.fromRGB(220, 220, 220)
     toggle.TextSize = 14
     toggle.Font = Enum.Font.Arial
@@ -684,6 +717,13 @@ local function createToggleButton(name, positionY, color, text, parent, stateKey
         end
         if callback then
             callback(state[stateKey])
+        end
+        if name == "FollowToggle" then
+            if state[stateKey] and state.followTargetPlayer then
+                toggleFollow(state.followTargetPlayer.Name)
+            else
+                toggleFollow("")
+            end
         end
     end)
 
@@ -737,6 +777,8 @@ local function createSliderLabel(name, positionY, defaultValue, parent, stateKey
     sliderFrame.Position = UDim2.new(0, 0, 0, 40)
     sliderFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
     sliderFrame.BackgroundTransparency = 0.1
+    sliderFrame.Active = true
+    sliderFrame.ZIndex = 2
     sliderFrame.Parent = container
 
     local sliderCorner = Instance.new("UICorner")
@@ -755,6 +797,8 @@ local function createSliderLabel(name, positionY, defaultValue, parent, stateKey
     sliderKnob.Size = UDim2.new(0, 20, 0, 20)
     sliderKnob.Position = UDim2.new((defaultValue - minValue) / (maxValue - minValue), -10, 0, 2.5)
     sliderKnob.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+    sliderKnob.Active = true
+    sliderKnob.ZIndex = 3
     sliderKnob.Parent = sliderFrame
 
     local knobCorner = Instance.new("UICorner")
@@ -767,17 +811,11 @@ local function createSliderLabel(name, positionY, defaultValue, parent, stateKey
     knobStroke.Parent = sliderKnob
 
     local draggingSlider = false
-    sliderKnob.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            draggingSlider = true
-        end
-    end)
 
-    UserInputService.InputChanged:Connect(function(input)
-        if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local mouseX = input.Position.X
-            local sliderPos = sliderFrame.AbsolutePosition.X
-            local sliderWidth = sliderFrame.AbsoluteSize.X
+    local function updateSlider(mouseX)
+        local sliderPos = sliderFrame.AbsolutePosition.X
+        local sliderWidth = sliderFrame.AbsoluteSize.X
+        if sliderWidth > 0 then
             local relativeX = math.clamp((mouseX - sliderPos) / sliderWidth, 0, 1)
             local newValue = minValue + relativeX * (maxValue - minValue)
             newValue = math.floor(newValue + 0.5)
@@ -788,12 +826,34 @@ local function createSliderLabel(name, positionY, defaultValue, parent, stateKey
             if multiplierPath then
                 updateMultiplier(multiplierPath, newValue)
             end
+            print("Slider " .. name .. " updated to: " .. newValue)
+        end
+    end
+
+    sliderFrame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingSlider = true
+            updateSlider(input.Position.X)
+        end
+    end)
+
+    sliderKnob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            draggingSlider = true
+            print("Slider dragging started: " .. name)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if draggingSlider and input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateSlider(input.Position.X)
         end
     end)
 
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             draggingSlider = false
+            print("Slider dragging ended: " .. name)
         end
     end)
 
@@ -1025,12 +1085,18 @@ end)
 -- Follow Tab
 local followFrame = tabFrames.Follow
 createToggleButton("FollowToggle", 10, Color3.fromRGB(100, 100, 255), "Follow Mode", followFrame, "followEnabled", false, nil, nil, function(enabled)
-    if state.followTargetPlayer then
+    print("FollowToggle clicked, enabled: " .. tostring(enabled))
+    if enabled and state.followTargetPlayer then
         toggleFollow(state.followTargetPlayer.Name)
-        followFrame.FollowToggleContainer.FollowToggle.Text = enabled and "On" or "Off"
+    else
+        toggleFollow("")
     end
+    followFrame.FollowToggleContainer.FollowToggle.Text = state.followEnabled and "On" or "Off"
+    followFrame.FollowToggleContainer.FollowToggle.BackgroundColor3 = state.followEnabled and Color3.fromRGB(0, 200, 0) or Color3.fromRGB(200, 50, 50)
 end)
-createSimpleButton("UpdatePlayers", 55, Color3.fromRGB(0, 200, 0), "Update Players List", followFrame, function()
+createSliderLabel("Follow Distance", 100, state.followDistance, followFrame, "followDistance", 1, 50, nil)
+createSimpleButton("UpdatePlayers", 180, Color3.fromRGB(0, 200, 0), "Update Players List", followFrame, function()
+    print("Updating players list")
     for _, child in ipairs(followFrame.PlayerList:GetChildren()) do
         if child:IsA("TextButton") then
             child:Destroy()
@@ -1061,18 +1127,20 @@ createSimpleButton("UpdatePlayers", 55, Color3.fromRGB(0, 200, 0), "Update Playe
 
             button.MouseButton1Click:Connect(function()
                 state.followTargetPlayer = p
+                print("Selected player: " .. p.Name)
             end)
 
             layoutOrder = layoutOrder + 1
         end
     end
     followFrame.PlayerList.CanvasSize = UDim2.new(0, 0, 0, layoutOrder * 35)
+    print("Players list updated, count: " .. layoutOrder)
 end)
 
 local playerListFrame = Instance.new("ScrollingFrame")
 playerListFrame.Name = "PlayerList"
 playerListFrame.Size = UDim2.new(0, 310, 0, 120)
-playerListFrame.Position = UDim2.new(-0.37, 125, 0, 100)
+playerListFrame.Position = UDim2.new(-0.37, 125, 0, 225)
 playerListFrame.BackgroundTransparency = 1
 playerListFrame.ScrollBarThickness = 8
 playerListFrame.Parent = followFrame
@@ -1097,7 +1165,7 @@ createSliderLabel("Ragdoll Timer", 170, state.ragdollTimerMultiplier, multiplier
 local ragdollNote = Instance.new("TextLabel")
 ragdollNote.Name = "RagdollPowerNotice"
 ragdollNote.Size = UDim2.new(0, 310, 0, 40)
-ragdollNote.Position = UDim2.new(-900.37, 125, 0, 250)
+ragdollNote.Position = UDim2.new(-0.37, 125, 0, 250)
 ragdollNote.BackgroundTransparency = 1
 ragdollNote.Text = "Note: RagdollPower instantly kills after 4 hits or any ragdoll"
 ragdollNote.TextColor3 = Color3.fromRGB(255, 100, 100)
@@ -1147,7 +1215,6 @@ local function createBindInput(labelName, inputName, positionY, stateKey, button
             if buttonToUpdate and buttonToUpdate.Parent then
                 buttonToUpdate.Text = buttonToUpdate.Text:match("^(.-)%(") .. "(" .. newKey.Name .. ")"
             end
-            -- Обновляем текст кнопки ScreenVisibilityToggle, если она уже создана
             if stateKey == "boundKeyScreenVisibility" and settingsFrame:FindFirstChild("ScreenVisibilityContainer") and settingsFrame.ScreenVisibilityContainer:FindFirstChild("ScreenVisibilityToggle") then
                 settingsFrame.ScreenVisibilityContainer.ScreenVisibilityToggle.Text = state.screenVisible and "On" or "Off"
             end
@@ -1172,9 +1239,6 @@ local settingsFrame = tabFrames.Settings
 createToggleButton("TeleportOnDeath", 10, Color3.fromRGB(100, 100, 255), "Teleport on Death", settingsFrame, "teleportOnDeathEnabled", false, nil, nil)
 createToggleButton("ScreenVisibility", 55, Color3.fromRGB(100, 100, 255), "Screen Visibility", settingsFrame, "screenVisible", true, nil, nil, function(enabled)
     toggleScreenVisibility()
-    if settingsFrame:FindFirstChild("ScreenVisibilityContainer") and settingsFrame.ScreenVisibilityContainer:FindFirstChild("ScreenVisibilityToggle") then
-        settingsFrame.ScreenVisibilityContainer.ScreenVisibilityToggle.Text = enabled and "On" or "Off"
-    end
 end)
 createSimpleButton("DeleteAll", 100, Color3.fromRGB(200, 50, 50), "Delete All and Reset", settingsFrame, deleteAll)
 createSimpleButton("ToggleGui", 145, Color3.fromRGB(255, 100, 100), "Hide GUI", settingsFrame, function()
@@ -1182,13 +1246,13 @@ createSimpleButton("ToggleGui", 145, Color3.fromRGB(255, 100, 100), "Hide GUI", 
     frame.Visible = state.guiVisible
     settingsFrame.ToggleGui.Text = state.guiVisible and "Hide GUI" or "Show GUI"
 end)
-createToggleButton("InstantTransform", 190, Color3.fromRGB(100, 100, 255), "Instant Transformation", settingsFrame, "instantTransform", true, "Toggles", "InstantTransformation")
-createToggleButton("NoSlowdowns", 235, Color3.fromRGB(100, 100, 255), "No Slowdowns", settingsFrame, "noSlowdowns", true, "Toggles", "NoSlowdowns")
-createToggleButton("NoStunOnMiss", 280, Color3.fromRGB(100, 100, 255), "No Stun on Miss", settingsFrame, "noStunOnMiss", true, "Toggles", "NoStunOnMiss")
-createToggleButton("DisableFinishers", 325, Color3.fromRGB(100, 100, 255), "Disable Finishers", settingsFrame, "disableFinishers", true, "Toggles", "DisableFinishers")
-createToggleButton("DisableHitStun", 370, Color3.fromRGB(100, 100, 255), "Disable Hit Stun", settingsFrame, "disableHitStun", true, "Toggles", "DisableHitStun")
-createToggleButton("NoJumpFatigue", 415, Color3.fromRGB(100, 100, 255), "No Jump Fatigue", settingsFrame, "noJumpFatigue", true, "Toggles", "NoJumpFatigue")
-createToggleButton("DisableCombatTimer", 460, Color3.fromRGB(100, 100, 255), "Disable Combat Timer", settingsFrame, "disableCombatTimer", true, "Toggles", "DisableCombatTimer")
+createToggleButton("InstantTransform", 190, Color3.fromRGB(100, 100, 255), "Instant Transformation", settingsFrame, "instantTransform", false, "Toggles", "InstantTransformation")
+createToggleButton("NoSlowdowns", 235, Color3.fromRGB(100, 100, 255), "No Slowdowns", settingsFrame, "noSlowdowns", false, "Toggles", "NoSlowdowns")
+createToggleButton("NoStunOnMiss", 280, Color3.fromRGB(100, 100, 255), "No Stun on Miss", settingsFrame, "noStunOnMiss", false, "Toggles", "NoStunOnMiss")
+createToggleButton("DisableFinishers", 325, Color3.fromRGB(100, 100, 255), "Disable Finishers", settingsFrame, "disableFinishers", false, "Toggles", "DisableFinishers")
+createToggleButton("DisableHitStun", 370, Color3.fromRGB(100, 100, 255), "Disable Hit Stun", settingsFrame, "disableHitStun", false, "Toggles", "DisableHitStun")
+createToggleButton("NoJumpFatigue", 415, Color3.fromRGB(100, 100, 255), "No Jump Fatigue", settingsFrame, "noJumpFatigue", false, "Toggles", "NoJumpFatigue")
+createToggleButton("DisableCombatTimer", 460, Color3.fromRGB(100, 100, 255), "Disable Combat Timer", settingsFrame, "disableCombatTimer", false, "Toggles", "DisableCombatTimer")
 createToggleButton("DisableBlocking", 505, Color3.fromRGB(100, 100, 255), "Disable Blocking", settingsFrame, "disableBlocking", false, "Toggles", "DisableBlocking")
 
 -- Dragging Logic
@@ -1263,9 +1327,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
             end
         elseif input.KeyCode == state.boundKeyScreenVisibility then
             toggleScreenVisibility()
-            if settingsFrame:FindFirstChild("ScreenVisibilityContainer") and settingsFrame.ScreenVisibilityContainer:FindFirstChild("ScreenVisibilityToggle") then
-                settingsFrame.ScreenVisibilityContainer.ScreenVisibilityToggle.Text = state.screenVisible and "On" or "Off"
-            end
         end
     end
 end)
