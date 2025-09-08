@@ -80,7 +80,7 @@ local surfacegui = screen and screen:FindFirstChild("SurfaceGui")
 if surfacegui then surfacegui.Enabled = false end
 
 local function updateScreenPosition()
-    if screen and char and char:FindFirstChild("HumanoidRootPart") and not state.followEnabled then
+    if screen and char and char:FindFirstChild("HumanoidRootPart") then
         if screen:IsA("BasePart") then
             screen.Size = Vector3.new(3, 3, 3)
             screen.CanCollide = true
@@ -334,7 +334,7 @@ local function toggleFollow(targetName)
                 local playerPos = char.HumanoidRootPart.Position
                 local directionToTarget = (targetPos - playerPos).Unit
                 local followPos = targetPos - directionToTarget * state.followDistance
-                followPos = Vector3.new(followPos.X, playerPos.Y, followPos.Z)
+                followPos = Vector3.new(followPos.X, followPos.Y, followPos.Z)
                 char.HumanoidRootPart.CFrame = CFrame.new(followPos, targetPos)
                 print("Following " .. state.followTargetPlayer.Name .. " at distance: " .. state.followDistance)
             else
